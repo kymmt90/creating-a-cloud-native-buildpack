@@ -21,7 +21,10 @@ export LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}$layersdir/ruby/li
 echo "---> Installing bundler"
 gem install bundler --no-ri --no-rdoc
 
-local_bundler_checksum=$(sha256sum Gemfile.lock | cut -d ' ' -f 1)
+if [[ -f Gemfile.lock ]] ; then
+    local_bundler_checksum=$(sha256sum Gemfile.lock | cut -d ' ' -f 1)
+fi
+
 remote_bundler_checksum=$(cat "$layersdir/bundler.toml" | /tmp/yj -t | /tmp/jq -r .metadata 2>/dev/null || echo 'not found')
 
 if [[ -f Gemfile.lock && $local_bundler_checksum == $remote_bundler_checksum ]] ; then

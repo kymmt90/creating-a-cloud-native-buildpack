@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
+wget -qO /tmp/jq https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64 && chmod +x /tmp/jq
+wget -qO /tmp/yj https://github.com/sclevine/yj/releases/download/v2.0/yj-linux && chmod +x /tmp/yj
+
 layersdir=$1
 
 echo "---> Ruby Buildpack"
@@ -19,6 +22,8 @@ echo "---> Installing bundler"
 gem install bundler --no-ri --no-rdoc
 
 echo "--> Installing gems"
-bundle install
+mkdir "$layersdir/bundler"
+echo -e 'launch = true' > "$layersdir/bundler.toml"
+bundle install --path "$layersdir/bundler" --binstubs "$layersdir/bundler/bin"
 
 echo 'processes = [{ type = "web", command = "bundle exec ruby app.rb"}]' > "$layersdir/launch.toml"

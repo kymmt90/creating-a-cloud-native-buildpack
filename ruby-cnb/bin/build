@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
+layersdir=$1
+
 wget -qO /tmp/jq https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64 && chmod +x /tmp/jq
 wget -qO /tmp/yj https://github.com/sclevine/yj/releases/download/v2.0/yj-linux && chmod +x /tmp/yj
-
-layersdir=$1
 
 echo "---> Ruby Buildpack"
 
@@ -21,9 +21,18 @@ export LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}$layersdir/ruby/li
 echo "---> Installing bundler"
 gem install bundler --no-ri --no-rdoc
 
-echo "--> Installing gems"
-mkdir "$layersdir/bundler"
-echo -e 'launch = true' > "$layersdir/bundler.toml"
-bundle install --path "$layersdir/bundler" --binstubs "$layersdir/bundler/bin"
+local_bundler_checksum=$(sha256sum Gemfile.lock | cut -d ' ' -f 1)
+remote_bundler_checksum=$(cat "$layersdir/bundler.toml" | /tmp/yj -t | /tmp/jq -r .metadata 2>/dev/null || echo 'not found')
+
+if [[ -f Gemfile.lock && $local_bundler_checksum == $remote_bundler_checksum ]] ; then
+    echo "--> Reusing gems"
+    bundle config --local path "$layersdir/bundler" >/dev/null
+    bundle config --local bin "$layersdir/bundler/bin" >/dev/null
+else
+    echo "--> Installing gems"
+    mkdir -p "$layersdir/bundler"
+    echo -e "cache = true\nbuild = false\nlaunch = true\nmetadata = \"$local_bundler_checksum\"" > "$layersdir/bundler.toml"
+    bundle install --path "$layersdir/bundler" --binstubs "$layersdir/bundler/bin" && bundle clean
+fi
 
 echo 'processes = [{ type = "web", command = "bundle exec ruby app.rb"}]' > "$layersdir/launch.toml"
